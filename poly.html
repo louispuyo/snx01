@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Polymarket Bot</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: #2a2a3e;
+    --accent: #00e5a0;
+    --accent2: #7c3aed;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --text: #e8e8f0;
+    --muted: #6b6b8a;
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-display); min-height: 100vh; overflow-x: hidden; }
+  body::before { content: ''; position: fixed; inset: 0; background-image: linear-gradient(rgba(0,229,160,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,229,160,0.03) 1px, transparent 1px); background-size: 40px 40px; pointer-events: none; z-index: 0; }
+  body::after { content: ''; position: fixed; top: -200px; right: -200px; width: 600px; height: 600px; background: radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 70%); pointer-events: none; z-index: 0; }
+  .container { max-width: 960px; margin: 0 auto; padding: 40px 24px; position: relative; z-index: 1; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 48px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .logo h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+  .logo span { color: var(--accent); }
+  .wallet-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; margin-bottom: 32px; position: relative; overflow: hidden; transition: border-color 0.3s; }
+  .wallet-card.connected { border-color: rgba(0,229,160,0.3); }
+  .wallet-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--accent), transparent); opacity: 0; transition: opacity 0.3s; }
+  .wallet-card.connected::before { opacity: 1; }
+  .wallet-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .wallet-title { font-size: 13px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); transition: background 0.3s, box-shadow 0.3s; }
+  .status-dot.live { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  .wallet-address { font-family: var(--font-mono); font-size: 14px; color: var(--accent); background: rgba(0,229,160,0.06); padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; letter-spacing: 0.5px; display: none; }
+  .wallet-address.show { display: block; }
+  .wallet-stats { display: none; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .wallet-stats.show { display: grid; }
+  .stat { background: var(--surface2); border-radius: 10px; padding: 14px; text-align: center; }
+  .stat-label { font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+  .stat-value { font-family: var(--font-mono); font-size: 16px; font-weight: 500; color: var(--text); }
+  .stat-value.green { color: var(--accent); }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border-radius: 10px; font-family: var(--font-display); font-size: 14px; font-weight: 700; letter-spacing: 0.5px; cursor: pointer; border: none; transition: all 0.2s; }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover { background: #00ffb3; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(0,229,160,0.3); }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-danger { background: rgba(239,68,68,0.1); color: var(--danger); border: 1px solid rgba(239,68,68,0.3); }
+  .btn-danger:hover { background: rgba(239,68,68,0.2); }
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .section-title { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
+  .badge { font-family: var(--font-mono); font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(0,229,160,0.1); color: var(--accent); border: 1px solid rgba(0,229,160,0.2); }
+  .markets-grid { display: grid; gap: 16px; margin-bottom: 32px; }
+  .market-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; transition: border-color 0.2s, transform 0.2s; }
+  .market-card:hover { border-color: rgba(0,229,160,0.3); transform: translateY(-2px); }
+  .market-question { font-size: 15px; font-weight: 600; margin-bottom: 16px; line-height: 1.4; }
+  .market-bar { flex: 1; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
+  .market-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), #00b37a); border-radius: 3px; }
+  .market-pcts { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 12px; }
+  .pct-yes { color: var(--accent); }
+  .pct-no { color: var(--danger); }
+  .market-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .market-volume { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+  .market-actions { display: flex; gap: 8px; }
+  .btn-yes { padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; background: rgba(0,229,160,0.15); color: var(--accent); border: 1px solid rgba(0,229,160,0.3); transition: all 0.2s; }
+  .btn-yes:hover { background: rgba(0,229,160,0.3); }
+  .btn-no { padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; background: rgba(239,68,68,0.1); color: var(--danger); border: 1px solid rgba(239,68,68,0.3); transition: all 0.2s; }
+  .btn-no:hover { background: rgba(239,68,68,0.2); }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 100; display: none; align-items: center; justify-content: center; }
+  .modal-overlay.show { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 32px; width: 100%; max-width: 440px; }
+  .modal-title { font-size: 20px; font-weight: 800; margin-bottom: 8px; }
+  .modal-subtitle { color: var(--muted); font-size: 13px; margin-bottom: 24px; line-height: 1.5; }
+  .form-group { margin-bottom: 16px; }
+  .form-label { font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; display: block; }
+  .form-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-family: var(--font-mono); font-size: 14px; color: var(--text); outline: none; transition: border-color 0.2s; }
+  .form-input:focus { border-color: var(--accent); }
+  .outcome-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .outcome-btn { padding: 12px; border-radius: 10px; border: 2px solid var(--border); background: transparent; color: var(--muted); font-family: var(--font-display); font-weight: 700; cursor: pointer; transition: all 0.2s; font-size: 14px; }
+  .outcome-btn.yes.active { border-color: var(--accent); background: rgba(0,229,160,0.1); color: var(--accent); }
+  .outcome-btn.no.active { border-color: var(--danger); background: rgba(239,68,68,0.1); color: var(--danger); }
+  .modal-actions { display: flex; gap: 10px; margin-top: 24px; }
+  .network-warning { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); border-radius: 10px; padding: 12px 16px; font-size: 13px; color: var(--warn); margin-bottom: 16px; display: none; }
+  .network-warning.show { display: block; }
+  .log-container { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
+  .log-entries { max-height: 200px; overflow-y: auto; font-family: var(--font-mono); font-size: 12px; line-height: 1.8; }
+  .log-entry { display: flex; gap: 12px; opacity: 0; animation: fadeIn 0.3s forwards; }
+  @keyframes fadeIn { to { opacity: 1; } }
+  .log-time { color: var(--muted); flex-shrink: 0; }
+  .log-msg.info { color: var(--text); }
+  .log-msg.success { color: var(--accent); }
+  .log-msg.warn { color: var(--warn); }
+  .log-msg.error { color: var(--danger); }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface2); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      <h1>Poly<span>Bot</span></h1>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText" style="font-size:13px;color:var(--muted);">Non connecté</span>
+    </div>
+  </header>
+
+  <div class="wallet-card" id="walletCard">
+    <div class="wallet-header">
+      <span class="wallet-title">Wallet</span>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn-primary" id="connectBtn" onclick="connectWallet()">🦊 Connecter MetaMask</button>
+        <button class="btn btn-danger" id="disconnectBtn" style="display:none" onclick="disconnect()">Déconnecter</button>
+      </div>
+    </div>
+    <div class="network-warning" id="networkWarning">
+      ⚠️ Réseau non supporté. Bascule sur <strong>Polygon (MATIC)</strong> pour utiliser Polymarket.
+      <br><button class="btn btn-secondary" style="margin-top:8px;padding:6px 12px;font-size:12px;" onclick="switchToPolygon()">Changer de réseau</button>
+    </div>
+    <div class="wallet-address" id="walletAddress"></div>
+    <div class="wallet-stats" id="walletStats">
+      <div class="stat"><div class="stat-label">Réseau</div><div class="stat-value" id="networkName" style="font-size:13px;">—</div></div>
+      <div class="stat"><div class="stat-label">MATIC</div><div class="stat-value green" id="maticBalance">—</div></div>
+      <div class="stat"><div class="stat-label">USDC</div><div class="stat-value" id="usdcBalance">—</div></div>
+    </div>
+  </div>
+
+  <div class="section-header">
+    <span class="section-title">Marchés en direct</span>
+    <span class="badge" id="marketBadge">— marchés</span>
+  </div>
+  <div class="markets-grid" id="marketsGrid">
+    <div style="text-align:center;padding:40px;color:var(--muted);font-size:14px;">Connecte ton wallet pour charger les marchés</div>
+  </div>
+
+  <div class="section-header">
+    <span class="section-title" style="font-size:15px;">Journal</span>
+    <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px;" onclick="clearLog()">Effacer</button>
+  </div>
+  <div class="log-container">
+    <div class="log-entries" id="logEntries"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="tradeModal">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle">Placer un ordre</div>
+    <div class="modal-subtitle" id="modalSubtitle">—</div>
+    <div class="form-group">
+      <label class="form-label">Résultat</label>
+      <div class="outcome-toggle">
+        <button class="outcome-btn yes active" id="btnYes" onclick="selectOutcome('YES')">OUI ✓</button>
+        <button class="outcome-btn no" id="btnNo" onclick="selectOutcome('NO')">NON ✗</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Montant (USDC)</label>
+      <input type="number" class="form-input" id="tradeAmount" placeholder="10.00" min="1" step="0.01">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Prix estimé</label>
+      <input type="text" class="form-input" id="tradePrice" readonly style="color:var(--accent);">
+    </div>
+    <div style="background:var(--surface2);border-radius:10px;padding:14px;font-size:13px;color:var(--muted);line-height:1.6;">
+      ℹ️ MetaMask te demandera de confirmer avant tout envoi on-chain.
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" style="flex:1;" onclick="closeModal()">Annuler</button>
+      <button class="btn btn-primary" style="flex:2;" onclick="confirmTrade()">Confirmer avec MetaMask</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let account = null, chainId = null, selectedOutcome = 'YES', currentMarket = null;
+const POLYGON_CHAIN_ID = '0x89';
+
+const mockMarkets = [
+  { id:'1', question:"L'Euro sera-t-il au-dessus de 1.10 USD fin 2025 ?", yesPrice:0.63, noPrice:0.37, volume:'1,234,500' },
+  { id:'2', question:"Donald Trump sera-t-il président des États-Unis en janvier 2026 ?", yesPrice:0.88, noPrice:0.12, volume:'5,821,300' },
+  { id:'3', question:"Le Bitcoin dépassera-t-il 150 000 USD en 2025 ?", yesPrice:0.41, noPrice:0.59, volume:'3,102,800' },
+  { id:'4', question:"La Fed baissera-t-elle les taux d'intérêt en juin 2025 ?", yesPrice:0.55, noPrice:0.45, volume:'892,000' }
+];
+
+function log(msg, type='info') {
+  const c = document.getElementById('logEntries');
+  const t = new Date().toLocaleTimeString('fr-FR');
+  const e = document.createElement('div');
+  e.className = 'log-entry';
+  e.innerHTML = `<span class="log-time">${t}</span><span class="log-msg ${type}">${msg}</span>`;
+  c.prepend(e);
+}
+function clearLog() { document.getElementById('logEntries').innerHTML = ''; }
+
+async function connectWallet() {
+  if (!window.ethereum) {
+    log('MetaMask non détecté. Installe l\'extension et ouvre ce fichier dans ton navigateur.', 'error');
+    return;
+  }
+  try {
+    log('Demande de connexion MetaMask...', 'info');
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    account = accounts[0];
+    chainId = await window.ethereum.request({ method: 'eth_chainId' });
+    onConnected();
+    window.ethereum.on('accountsChanged', a => { if (!a.length) disconnect(); else { account=a[0]; onConnected(); } });
+    window.ethereum.on('chainChanged', c => { chainId=c; checkNetwork(); });
+  } catch(e) { log('Connexion refusée : ' + e.message, 'error'); }
+}
+
+async function onConnected() {
+  log(`Connecté : ${account.slice(0,6)}...${account.slice(-4)}`, 'success');
+  document.getElementById('walletCard').classList.add('connected');
+  document.getElementById('statusDot').classList.add('live');
+  document.getElementById('statusText').textContent = 'Connecté';
+  document.getElementById('connectBtn').style.display = 'none';
+  document.getElementById('disconnectBtn').style.display = 'inline-flex';
+  const a = document.getElementById('walletAddress');
+  a.textContent = account; a.classList.add('show');
+  document.getElementById('walletStats').classList.add('show');
+  checkNetwork();
+  await fetchBalances();
+  renderMarkets();
+}
+
+function checkNetwork() {
+  const ok = chainId === POLYGON_CHAIN_ID;
+  document.getElementById('networkWarning').classList.toggle('show', !ok);
+  const names = {'0x89':'Polygon','0x1':'Ethereum','0x38':'BSC','0xa':'Optimism','0x13881':'Mumbai'};
+  document.getElementById('networkName').textContent = names[chainId] || `Chain ${parseInt(chainId,16)}`;
+  log(ok ? 'Réseau Polygon ✓' : 'Réseau incorrect — bascule sur Polygon', ok ? 'success' : 'warn');
+}
+
+async function switchToPolygon() {
+  try {
+    await window.ethereum.request({ method:'wallet_switchEthereumChain', params:[{chainId:POLYGON_CHAIN_ID}] });
+  } catch(e) {
+    if (e.code===4902) await window.ethereum.request({ method:'wallet_addEthereumChain', params:[{ chainId:POLYGON_CHAIN_ID, chainName:'Polygon Mainnet', nativeCurrency:{name:'MATIC',symbol:'MATIC',decimals:18}, rpcUrls:['https://polygon-rpc.com/'], blockExplorerUrls:['https://polygonscan.com/'] }] });
+    else log('Erreur réseau : ' + e.message, 'error');
+  }
+}
+
+async function fetchBalances() {
+  try {
+    const b = await window.ethereum.request({ method:'eth_getBalance', params:[account,'latest'] });
+    document.getElementById('maticBalance').textContent = (parseInt(b,16)/1e18).toFixed(4);
+    const usdc='0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
+    const data='0x70a08231'+account.replace('0x','').padStart(64,'0');
+    const ub = await window.ethereum.request({ method:'eth_call', params:[{to:usdc,data},'latest'] });
+    document.getElementById('usdcBalance').textContent = '$'+(parseInt(ub,16)/1e6).toFixed(2);
+  } catch(e) { log('Soldes indisponibles : '+e.message,'warn'); }
+}
+
+function disconnect() {
+  account=null; chainId=null;
+  document.getElementById('walletCard').classList.remove('connected');
+  document.getElementById('statusDot').classList.remove('live');
+  document.getElementById('statusText').textContent='Non connecté';
+  document.getElementById('connectBtn').style.display='inline-flex';
+  document.getElementById('disconnectBtn').style.display='none';
+  document.getElementById('walletAddress').classList.remove('show');
+  document.getElementById('walletStats').classList.remove('show');
+  document.getElementById('networkWarning').classList.remove('show');
+  document.getElementById('marketsGrid').innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);font-size:14px;">Connecte ton wallet pour charger les marchés</div>';
+  document.getElementById('marketBadge').textContent='— marchés';
+  log('Déconnecté','warn');
+}
+
+function renderMarkets() {
+  document.getElementById('marketBadge').textContent = mockMarkets.length+' marchés';
+  document.getElementById('marketsGrid').innerHTML = mockMarkets.map(m=>`
+    <div class="market-card">
+      <div class="market-question">${m.question}</div>
+      <div class="market-bar"><div class="market-bar-fill" style="width:${m.yesPrice*100}%"></div></div>
+      <div class="market-pcts"><span class="pct-yes">OUI ${Math.round(m.yesPrice*100)}%</span><span class="pct-no">NON ${Math.round(m.noPrice*100)}%</span></div>
+      <div class="market-meta">
+        <span class="market-volume">Vol. $${m.volume}</span>
+        <div class="market-actions">
+          <button class="btn-yes" onclick="openTrade('${m.id}','YES')">Acheter OUI</button>
+          <button class="btn-no" onclick="openTrade('${m.id}','NO')">Acheter NON</button>
+        </div>
+      </div>
+    </div>`).join('');
+  log(mockMarkets.length+' marchés chargés','success');
+}
+
+function openTrade(id, outcome) {
+  if (!account) { log('Connecte ton wallet d\'abord','warn'); return; }
+  currentMarket = mockMarkets.find(m=>m.id===id);
+  selectedOutcome = outcome;
+  document.getElementById('modalSubtitle').textContent = currentMarket.question;
+  updateOutcomeUI(); updatePrice();
+  document.getElementById('tradeAmount').value='';
+  document.getElementById('tradeModal').classList.add('show');
+}
+function closeModal() { document.getElementById('tradeModal').classList.remove('show'); }
+function selectOutcome(o) { selectedOutcome=o; updateOutcomeUI(); updatePrice(); }
+function updateOutcomeUI() {
+  document.getElementById('btnYes').classList.toggle('active', selectedOutcome==='YES');
+  document.getElementById('btnNo').classList.toggle('active', selectedOutcome==='NO');
+}
+function updatePrice() {
+  if (!currentMarket) return;
+  const p = selectedOutcome==='YES' ? currentMarket.yesPrice : currentMarket.noPrice;
+  document.getElementById('tradePrice').value = `$${p.toFixed(4)} / share`;
+}
+document.getElementById('tradeAmount').addEventListener('input', updatePrice);
+
+async function confirmTrade() {
+  const amount = parseFloat(document.getElementById('tradeAmount').value);
+  if (!amount||amount<=0) { log('Montant invalide','error'); return; }
+  log(`Ordre ${selectedOutcome} — ${amount} USDC sur "${currentMarket.question.substring(0,40)}..."`, 'info');
+  try {
+    const tx = await window.ethereum.request({ method:'eth_sendTransaction', params:[{ from:account, to:account, value:'0x0', data:'0x', chainId:POLYGON_CHAIN_ID }] });
+    log(`Transaction soumise : ${tx.slice(0,20)}...`, 'success');
+    closeModal();
+  } catch(e) {
+    log(e.code===4001 ? 'Transaction refusée' : 'Erreur : '+e.message, e.code===4001?'warn':'error');
+  }
+}
+
+log('PolyBot prêt — connecte ton wallet MetaMask','info');
+</script>
+</body>
+</html>
